@@ -27,9 +27,9 @@ This collector monitors Docker containers state, health status and more.
 
 It connects to the Docker instance via a TCP or UNIX socket and executes the following commands:
 
-- [System info](https://docs.docker.com/engine/api/v1.43/#tag/System/operation/SystemInfo).
-- [List images](https://docs.docker.com/engine/api/v1.43/#tag/Image/operation/ImageList).
-- [List containers](https://docs.docker.com/engine/api/v1.43/#tag/Container/operation/ContainerList).
+- [System info](https://docs.docker.com/engine/api/v1.43/#tag/System/operation/SystemInfo), on every collection.
+- [List images](https://docs.docker.com/engine/api/v1.43/#tag/Image/operation/ImageList), at most once every 5 minutes.
+- [List containers](https://docs.docker.com/engine/api/v1.43/#tag/Container/operation/ContainerList), on every collection, once per container health status.
 
 
 This collector is supported on all platforms.
@@ -47,11 +47,14 @@ It discovers instances running on localhost by attempting to connect to a known 
 
 #### Limits
 
-The default configuration for this integration does not impose any limits on data collection.
+The image list is refreshed about every 5 minutes, or on every collection when `update_every` is longer, so pulled and removed images can take that long to show. Whether an image is used by a container is updated on every collection.
+
 
 #### Performance Impact
 
-Enabling `collect_container_size` may result in high CPU usage depending on the version of Docker Engine.
+The collector itself uses little CPU; the cost falls on the Docker daemon, which does the work for each API request. On Docker Engine 29 and later with the containerd image store, listing images and containers costs `dockerd` and `containerd` CPU time that grows with the number of images and containers ([moby/moby#53077](https://github.com/moby/moby/issues/53077)).
+
+The defaults keep this low: data is collected every 10 seconds, and the image list is requested at most once every 5 minutes. Lowering `update_every` increases daemon CPU usage. Enabling `collect_container_size` may result in high CPU usage, depending on the Docker Engine version.
 
 
 ## Setup
@@ -88,7 +91,7 @@ The following options can be defined globally: update_every, autodetection_retry
 
 | Group | Option | Description | Default | Required |
 |:------|:-----|:------------|:--------|:---------:|
-| **Collection** | update_every | Data collection interval (seconds). | 1 | no |
+| **Collection** | update_every | Data collection interval (seconds). | 10 | no |
 |  | autodetection_retry | Autodetection retry interval (seconds). Set 0 to disable. | 0 | no |
 | **Target** | address | Docker daemon address. For TCP sockets: `tcp://IP:PORT`. | unix:///var/run/docker.sock | yes |
 |  | timeout | Request timeout (seconds). | 2 | no |
